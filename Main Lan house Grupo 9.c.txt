@@ -1,0 +1,292 @@
+#include <stdio.h>
+#include <string.h>
+
+// ============================================================================
+// GAME BAR - SISTEMA DE GESTAO (LAN HOUSE + BAR + LANCHONETE)
+// Checkpoint 1 - Algoritmos e Pensamento Computacional
+//
+// Servicos do Game Bar:
+//  - Bar com cardapio de bebidas
+//  - Lanchonete com salgados e doces
+//  - Computadores, consoles, celulares e VR (hora de uso = R$ 1,00)
+// ============================================================================
+
+#define PRECO_HORA 1.00  // Valor da hora de uso de qualquer estacao (R$)
+
+// ============================================================================
+// PARTE 1: MODELAGEM DE DADOS (ESCOPO GLOBAL - 1 STRUCT POR INTEGRANTE)
+// ============================================================================
+
+// 1. Perspectiva do Integrante A: Clientes do Game Bar
+struct Cliente {
+    int idCliente;   // colocar um laço de repetição para ficar igual um autoincrement
+    char nome[50];   // printf - scanf
+    char telefone[20]; // printf - scanf
+    float saldoCreditos;   // creditos pre-pagos em R$
+    int ativo;             // 1 = Ativo, 0 = Removido
+};
+
+struct Cliente listaClientes[50];
+int totalClientes = 0;
+
+// 2. Perspectiva do Integrante B: Cardapio (Bar + Lanchonete)
+struct ItemCardapio {
+    int idItem;  // colocar um laço de repetição para ficar igual um autoincrement
+    char nomeItem[40];   // printf - scanf
+    char categoria[20];    // "Bebida", "Salgado" ou "Doce"
+    float preco;   //Fazer preço começa 0, definir valor para cada item e depois adicionar eles preço+fritas+humberguer+água.
+    int quantidadeEstoque;  // usar um acumulador.
+    int disponivel;        // 1 = Disponivel, 0 = Esgotado/Removido
+};
+
+struct ItemCardapio cardapio[50];
+int totalItens = 0;
+
+// 3. Perspectiva do Integrante C: Estacoes de Jogo (PC, Console, Celular, VR)
+struct Estacao {
+    int idEstacao;
+    char nomeEstacao[30];  // Ex: "PC Gamer 01", "PS5 Mesa 2"
+    char tipo[20];         // "Computador", "Console", "Celular" ou "VR"
+    float precoHora;       // usar PRECO_HORA (R$ 1,00)
+    int ocupada;           // 1 = Em uso, 0 = Livre
+    int ativa;             // 1 = Ativa, 0 = Removida / em manutencao
+};
+
+struct Estacao estacoes[50];
+int totalEstacoes = 0;
+
+// 4. Perspectiva do Integrante D: Locacoes (Sessoes de jogo) e Relatorios
+struct Locacao {
+    int idLocacao;
+    int idClienteLocador;
+    int idEstacaoUsada;
+    int horasContratadas;
+    float valorTotal;      // horasContratadas * precoHora
+};
+
+struct Locacao historicoLocacoes[50];
+int totalLocacoes = 0;
+
+
+// ============================================================================
+// PARTE 2: FUNCOES DE INTERFACE E MODULOS DE CADA INTEGRANTE
+// ============================================================================
+
+// Funcao Visual Comum da Equipe
+void exibirCabecalho() {
+    printf("\n======================================================\n");
+    printf("      GAME BAR - SISTEMA DE GESTAO DA LAN HOUSE       \n");
+    printf("======================================================\n");
+}
+
+// ----------------------------------------------------------------------------
+// MODULO 1: PERSPECTIVA DE CLIENTES
+// Autor: Integrante A (Nome Completo e RGM)
+// ----------------------------------------------------------------------------
+void moduloClientes() {
+    int opcaoCliente;
+    do {
+        printf("\n--- [MODULO 1: GESTAO DE CLIENTES (Integrante A)] ---\n");
+        printf("1. Cadastrar Novo Cliente\n");
+        printf("2. Listar / Buscar Clientes\n");
+        printf("3. Editar Dados ou Creditos de Cliente\n");
+        printf("4. Remover Cliente\n");
+        printf("0. Voltar ao Menu Principal\n");
+        printf("Escolha uma acao: ");
+        scanf("%d", &opcaoCliente);
+
+        switch (opcaoCliente) {
+            case 1:
+                printf("\n[Em construcao] Rotina de Cadastro de Cliente...\n");
+                printf("Campos previstos: ID, Nome, Telefone e Saldo Inicial de Creditos.\n");
+                break;
+            case 2:
+                printf("\n[Em construcao] Rotina de Busca e Listagem de Clientes...\n");
+                break;
+            case 3:
+                printf("\n[Em construcao] Rotina de Edicao de Cliente por ID...\n");
+                break;
+            case 4:
+                printf("\n[Em construcao] Rotina de Remocao de Cliente...\n");
+                break;
+            case 0:
+                printf("\nRetornando ao menu principal...\n");
+                break;
+            default:
+                printf("\n[ERRO] Opcao invalida no Modulo de Clientes!\n");
+        }
+    } while (opcaoCliente != 0);
+}
+
+// ----------------------------------------------------------------------------
+// MODULO 2: PERSPECTIVA DO CARDAPIO (BEBIDAS, SALGADOS E DOCES)
+// Autor: Integrante B (Nome Completo e RGM)
+//
+// Sugestao de itens e precos para cadastrar (valores ficticios):
+//   BEBIDAS : Agua R$ 3,00 | Refrigerante lata R$ 6,00 | Suco natural R$ 8,00
+//             Energetico R$ 10,00 | Cerveja long neck R$ 12,00 | Drink Gamer R$ 18,00
+//   SALGADOS: Pao de queijo R$ 5,00 | Esfiha R$ 6,50 | Coxinha R$ 7,00
+//             Pastel R$ 8,00 | X-Burguer R$ 15,00
+//   DOCES   : Brigadeiro R$ 3,50 | Sorvete R$ 7,50 | Brownie R$ 8,00 | Pudim R$ 9,00
+// ----------------------------------------------------------------------------
+void moduloCardapio() {
+    int opcaoItem;
+    do {
+        printf("\n--- [MODULO 2: CARDAPIO BAR E LANCHONETE (Integrante B)] ---\n");
+        printf("1. Cadastrar Novo Item (Bebida, Salgado ou Doce)\n");
+        printf("2. Listar Cardapio / Buscar Item\n");
+        printf("3. Alterar Preco ou Estoque de Item\n");
+        printf("4. Excluir Item do Cardapio\n");
+        printf("0. Voltar ao Menu Principal\n");
+        printf("Escolha uma acao: ");
+        scanf("%d", &opcaoItem);
+
+        switch (opcaoItem) {
+            case 1:
+                printf("\n[Em construcao] Cadastrando Item (ID, Nome, Categoria, Preco, Estoque)...\n");
+                break;
+            case 2:
+                printf("\n[Em construcao] Listando todos os itens disponiveis por categoria...\n");
+                break;
+            case 3:
+                printf("\n[Em construcao] Atualizando preco ou estoque do item...\n");
+                break;
+            case 4:
+                printf("\n[Em construcao] Removendo item fora de linha...\n");
+                break;
+            case 0:
+                printf("\nRetornando ao menu principal...\n");
+                break;
+            default:
+                printf("\n[ERRO] Opcao invalida no Modulo de Cardapio!\n");
+        }
+    } while (opcaoItem != 0);
+}
+
+// ----------------------------------------------------------------------------
+// MODULO 3: PERSPECTIVA DAS ESTACOES (PC, CONSOLE, CELULAR E VR)
+// Autor: Integrante C (Nome Completo e RGM)
+// ----------------------------------------------------------------------------
+void moduloEstacoes() {
+    int opcaoEstacao;
+    do {
+        printf("\n--- [MODULO 3: ESTACOES DE JOGO (Integrante C)] ---\n");
+        printf("1. Cadastrar Nova Estacao (PC, Console, Celular ou VR)\n");
+        printf("2. Listar Estacoes / Ver Quais Estao Livres\n");
+        printf("3. Editar Estacao (Nome, Tipo ou Status)\n");
+        printf("4. Dar Baixa / Remover Estacao em Manutencao\n");
+        printf("0. Voltar ao Menu Principal\n");
+        printf("Escolha uma acao: ");
+        scanf("%d", &opcaoEstacao);
+
+        switch (opcaoEstacao) {
+            case 1:
+                printf("\n[Em construcao] Cadastro de Estacao (ID, Nome, Tipo, Preco da Hora R$ 1,00)...\n");
+                break;
+            case 2:
+                printf("\n[Em construcao] Listando estacoes por tipo e situacao (livre/ocupada)...\n");
+                break;
+            case 3:
+                printf("\n[Em construcao] Editando dados da estacao por ID...\n");
+                break;
+            case 4:
+                printf("\n[Em construcao] Baixa de estacao com defeito...\n");
+                break;
+            case 0:
+                printf("\nRetornando ao menu principal...\n");
+                break;
+            default:
+                printf("\n[ERRO] Opcao invalida no Modulo de Estacoes!\n");
+        }
+    } while (opcaoEstacao != 0);
+}
+
+// ----------------------------------------------------------------------------
+// MODULO 4: PERSPECTIVA DE LOCACOES E RELATORIOS ANALITICOS (CRUZAMENTO DE DADOS)
+// Autor: Integrante D (Nome Completo e RGM)
+// ----------------------------------------------------------------------------
+void moduloLocacoesRelatorios() {
+    int opcaoLocacao;
+    do {
+        printf("\n--- [MODULO 4: LOCACOES E RELATORIOS ANALITICOS (Integrante D)] ---\n");
+        printf("1. Registrar Nova Locacao (Cruza Cliente + Estacao + Horas)\n");
+        printf("2. Listar Historico de Locacoes do Dia\n");
+        printf("3. Cancelar / Estornar Locacao\n");
+        printf("4. [RELATORIO] Estacao Mais Utilizada\n");
+        printf("5. [RELATORIO] Cliente VIP (Mais Horas Jogadas)\n");
+        printf("6. [RELATORIO] Locacoes Realizadas por um Cliente Especifico\n");
+        printf("0. Voltar ao Menu Principal\n");
+        printf("Escolha uma acao: ");
+        scanf("%d", &opcaoLocacao);
+
+        switch (opcaoLocacao) {
+            case 1:
+                printf("\n[Em construcao] Lancamento de locacao vinculando ID Cliente e ID Estacao...\n");
+                printf("Calculo previsto: horas x R$ 1,00.\n");
+                break;
+            case 2:
+                printf("\n[Em construcao] Exibindo todas as locacoes registradas...\n");
+                break;
+            case 3:
+                printf("\n[Em construcao] Estorno de locacao por ID...\n");
+                break;
+            case 4:
+                printf("\n[Em construcao] Calculando ranking da estacao mais usada...\n");
+                break;
+            case 5:
+                printf("\n[Em construcao] Identificando cliente com maior total de horas...\n");
+                break;
+            case 6:
+                printf("\n[Em construcao] Filtrando locacoes por ID de cliente...\n");
+                break;
+            case 0:
+                printf("\nRetornando ao menu principal...\n");
+                break;
+            default:
+                printf("\n[ERRO] Opcao invalida no Modulo de Locacoes!\n");
+        }
+    } while (opcaoLocacao != 0);
+}
+
+
+// ============================================================================
+// PARTE 3: FUNCAO PRINCIPAL (MAIN) - DESPACHANTE DE MENUS
+// ============================================================================
+int main() {
+    int opcaoPrincipal;
+
+    do {
+        exibirCabecalho();
+        printf("SELECIONE A PERSPECTIVA DO SISTEMA:\n");
+        printf("1. Modulo de Clientes (Integrante A)\n");
+        printf("2. Modulo de Cardapio - Bar e Lanchonete (Integrante B)\n");
+        printf("3. Modulo de Estacoes de Jogo (Integrante C)\n");
+        printf("4. Modulo de Locacoes e Relatorios (Integrante D)\n");
+        printf("0. Encerrar o Sistema\n");
+        printf("------------------------------------------------------\n");
+        printf("Digite a opcao desejada: ");
+        scanf("%d", &opcaoPrincipal);
+
+        switch (opcaoPrincipal) {
+            case 1:
+                moduloClientes();
+                break;
+            case 2:
+                moduloCardapio();
+                break;
+            case 3:
+                moduloEstacoes();
+                break;
+            case 4:
+                moduloLocacoesRelatorios();
+                break;
+            case 0:
+                printf("\nEncerrando o sistema Game Bar... Ate logo!\n");
+                break;
+            default:
+                printf("\n[ALERTA] Opcao invalida! Digite um numero de 0 a 4.\n");
+        }
+    } while (opcaoPrincipal != 0);
+
+    return 0;
+}
