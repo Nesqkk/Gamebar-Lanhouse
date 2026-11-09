@@ -19,7 +19,7 @@
 
 // 1. Perspectiva do Integrante A: Clientes do Game Bar
 struct Cliente {
-    int idCliente;   // colocar um laço de repetição para ficar igual um autoincrement
+    int idCliente;   // colocar um laÃ§o de repetiÃ§Ã£o para ficar igual um autoincrement
     char nome[50];   // printf - scanf
     char telefone[20]; // printf - scanf
     float saldoCreditos;   // creditos pre-pagos em R$
@@ -31,10 +31,10 @@ int totalClientes = 0;
 
 // 2. Perspectiva do Integrante B: Cardapio (Bar + Lanchonete)
 struct ItemCardapio {
-    int idItem;  // colocar um laço de repetição para ficar igual um autoincrement
+    int idItem;  // colocar um laÃ§o de repetiÃ§Ã£o para ficar igual um autoincrement
     char nomeItem[40];   // printf - scanf
     char categoria[20];    // "Bebida", "Salgado" ou "Doce"
-    float preco;   //Fazer preço começa 0, definir valor para cada item e depois adicionar eles preço+fritas+humberguer+água.
+    float preco;   //Fazer preÃ§o comeÃ§a 0, definir valor para cada item e depois adicionar eles preÃ§o+fritas+humberguer+Ã¡gua.
     int quantidadeEstoque;  // usar um acumulador.
     int disponivel;        // 1 = Disponivel, 0 = Esgotado/Removido
 };
