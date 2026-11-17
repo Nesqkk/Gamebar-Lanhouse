@@ -1,15 +1,12 @@
-// Arquivo: locacoes.h | Modulo 4: Locacoes e Relatorios | Autor: João Pedro Porto Lopes 49004913
+// Arquivo: locacoes.h | Modulo 4: Locacoes e Relatorios | Autor: Joao Pedro Porto Lopes 49004913
 #ifndef LOCACOES_H
 #define LOCACOES_H
 
-#include <stdio.h>
-#include <string.h>
+#include "utils.h"
 #include "clientes.h"   // para validar o cliente e debitar o saldo
 #include "estacoes.h"   // para validar a estacao e mudar o status
 
-#define MAX_LOCACOES 50
-
-void limparTela(); // prototipo: a funcao completa fica no main.c da equipe
+#define MAX_LOCACOES 500
 
 struct Locacao {
     int idLocacao;
@@ -17,9 +14,10 @@ struct Locacao {
     int idEstacaoUsada;
     int horasContratadas;
     float valorTotal;      // horasContratadas * precoHora
+    int emAndamento;       // 1 = sessao em andamento, 0 = sessao encerrada
 };
 
-struct Locacao historicoLocacoes[MAX_LOCACOES];
+struct Locacao listaLocacoes[MAX_LOCACOES];
 int totalLocacoes = 0;
 
 // struct auxiliar do ranking (Bubble Sort)
@@ -37,12 +35,13 @@ void salvarLocacoesCSV() {
         return;
     }
     for (int i = 0; i < totalLocacoes; i++) {
-        fprintf(arq, "%d;%d;%d;%d;%.2f\n",
-                historicoLocacoes[i].idLocacao,
-                historicoLocacoes[i].idClienteLocador,
-                historicoLocacoes[i].idEstacaoUsada,
-                historicoLocacoes[i].horasContratadas,
-                historicoLocacoes[i].valorTotal);
+        fprintf(arq, "%d;%d;%d;%d;%.2f;%d\n",
+                listaLocacoes[i].idLocacao,
+                listaLocacoes[i].idClienteLocador,
+                listaLocacoes[i].idEstacaoUsada,
+                listaLocacoes[i].horasContratadas,
+                listaLocacoes[i].valorTotal,
+                listaLocacoes[i].emAndamento);
     }
     fclose(arq);
 }
@@ -52,15 +51,19 @@ void carregarLocacoesCSV() {
     FILE *arq = fopen("locacoes.csv", "r");
     if (arq == NULL) return; // se ainda nao existir arquivo, inicia com 0 registros
 
+    char linha[200];
     totalLocacoes = 0;
-    while (totalLocacoes < MAX_LOCACOES &&
-           fscanf(arq, "%d;%d;%d;%d;%f\n",
-                  &historicoLocacoes[totalLocacoes].idLocacao,
-                  &historicoLocacoes[totalLocacoes].idClienteLocador,
-                  &historicoLocacoes[totalLocacoes].idEstacaoUsada,
-                  &historicoLocacoes[totalLocacoes].horasContratadas,
-                  &historicoLocacoes[totalLocacoes].valorTotal) == 5) {
-        totalLocacoes++;
+    while (totalLocacoes < MAX_LOCACOES && fgets(linha, sizeof(linha), arq) != NULL) {
+        int i = totalLocacoes;
+        int lidos = sscanf(linha, "%d;%d;%d;%d;%f;%d",
+                           &listaLocacoes[i].idLocacao,
+                           &listaLocacoes[i].idClienteLocador,
+                           &listaLocacoes[i].idEstacaoUsada,
+                           &listaLocacoes[i].horasContratadas,
+                           &listaLocacoes[i].valorTotal,
+                           &listaLocacoes[i].emAndamento);
+        if (lidos == 5) listaLocacoes[i].emAndamento = 0; // arquivo antigo (sem a 6a coluna)
+        if (lidos >= 5) totalLocacoes++;                  // linha com defeito e ignorada
     }
     fclose(arq);
 }
@@ -68,33 +71,49 @@ void carregarLocacoesCSV() {
 // 3. FUNCAO CHAVE-MESTRA: devolve a posicao do ID no vetor, ou -1 se nao existir
 int buscarIndiceLocacao(int idProcurado) {
     for (int i = 0; i < totalLocacoes; i++) {
-        if (historicoLocacoes[i].idLocacao == idProcurado) return i;
+        if (listaLocacoes[i].idLocacao == idProcurado) return i;
     }
     return -1;
 }
 
-// 4. AUTOINCREMENT: laco que acha o maior ID e devolve o proximo (nunca repete)
+// 4. AUTOINCREMENT: acha o maior ID e devolve o proximo
 int gerarIdLocacao() {
     int maior = 0;
     for (int i = 0; i < totalLocacoes; i++) {
-        if (historicoLocacoes[i].idLocacao > maior) maior = historicoLocacoes[i].idLocacao;
+        if (listaLocacoes[i].idLocacao > maior) maior = listaLocacoes[i].idLocacao;
     }
     return maior + 1;
 }
 
-// 5. IMPRIME UMA LOCACAO COM O NOME DO CLIENTE E DA ESTACAO (cruzamento de modulos)
-void imprimirLocacao(int i) {
-    int ic = buscarIndiceCliente(historicoLocacoes[i].idClienteLocador);
-    int ie = buscarIndiceEstacao(historicoLocacoes[i].idEstacaoUsada);
-    printf("Loc %-3d | Cliente: %-22s | Estacao: %-22s | %2dh | R$ %.2f\n",
-           historicoLocacoes[i].idLocacao,
-           ic != -1 ? listaClientes[ic].nome : "(removido)",
-           ie != -1 ? estacoes[ie].nomeEstacao : "(removida)",
-           historicoLocacoes[i].horasContratadas,
-           historicoLocacoes[i].valorTotal);
+// 5. FUNCOES USADAS PELOS MODULOS 1 E 3 (impedem remover quem tem historico)
+int clienteTemLocacoes(int idCliente) {
+    for (int i = 0; i < totalLocacoes; i++) {
+        if (listaLocacoes[i].idClienteLocador == idCliente) return 1;
+    }
+    return 0;
 }
 
-// 6. REGRA DE NEGOCIO: valida cliente e estacao, calcula o valor,
+int estacaoTemLocacoes(int idEstacao) {
+    for (int i = 0; i < totalLocacoes; i++) {
+        if (listaLocacoes[i].idEstacaoUsada == idEstacao) return 1;
+    }
+    return 0;
+}
+
+// 6. IMPRIME UMA LOCACAO COM O NOME DO CLIENTE E DA ESTACAO
+void imprimirLocacao(int i) {
+    int ic = buscarIndiceCliente(listaLocacoes[i].idClienteLocador);
+    int ie = buscarIndiceEstacao(listaLocacoes[i].idEstacaoUsada);
+    printf("Loc %-3d | Cliente: %-22s | Estacao: %-22s | %2dh | R$ %.2f | %s\n",
+           listaLocacoes[i].idLocacao,
+           ic != -1 ? listaClientes[ic].nome : "(removido)",
+           ie != -1 ? listaEstacoes[ie].nomeEstacao : "(removida)",
+           listaLocacoes[i].horasContratadas,
+           listaLocacoes[i].valorTotal,
+           listaLocacoes[i].emAndamento ? "Em andamento" : "Encerrada");
+}
+
+// 7. REGRA DE NEGOCIO: valida cliente e estacao, calcula o valor,
 //    debita o saldo do cliente e marca a estacao como ocupada
 void registrarLocacao() {
     if (totalLocacoes >= MAX_LOCACOES) {
@@ -102,10 +121,8 @@ void registrarLocacao() {
         return;
     }
 
-    int idCliente, idEstacao, horas;
-
     printf("\nID do cliente: ");
-    scanf("%d", &idCliente);
+    int idCliente = lerInteiro();
     int ic = buscarIndiceCliente(idCliente);
     if (ic == -1) {
         printf("[ERRO] Cliente nao encontrado!\n");
@@ -113,24 +130,25 @@ void registrarLocacao() {
     }
 
     printf("ID da estacao: ");
-    scanf("%d", &idEstacao);
+    int idEstacao = lerInteiro();
     int ie = buscarIndiceEstacao(idEstacao);
     if (ie == -1) {
         printf("[ERRO] Estacao nao encontrada!\n");
         return;
     }
-    if (estacoes[ie].ocupada) {
-        printf("[ERRO] A estacao '%s' ja esta em uso!\n", estacoes[ie].nomeEstacao);
+    if (listaEstacoes[ie].ocupada) {
+        printf("[ERRO] A estacao '%s' ja esta em uso!\n", listaEstacoes[ie].nomeEstacao);
         return;
     }
 
+    int horas;
     do {
         printf("Horas contratadas: ");
-        scanf("%d", &horas);
+        horas = lerInteiro();
         if (horas <= 0) printf("[ERRO] Informe pelo menos 1 hora!\n");
     } while (horas <= 0);
 
-    float valor = horas * estacoes[ie].precoHora;
+    float valor = horas * listaEstacoes[ie].precoHora;
     if (listaClientes[ic].saldoCreditos < valor) {
         printf("[ERRO] Saldo insuficiente! Saldo: R$ %.2f | Necessario: R$ %.2f\n",
                listaClientes[ic].saldoCreditos, valor);
@@ -138,13 +156,15 @@ void registrarLocacao() {
     }
 
     listaClientes[ic].saldoCreditos -= valor;   // abate os creditos do cliente
-    estacoes[ie].ocupada = 1;                   // muda o status da estacao
+    listaEstacoes[ie].ocupada = 1;              // muda o status da estacao
 
-    historicoLocacoes[totalLocacoes].idLocacao = gerarIdLocacao();
-    historicoLocacoes[totalLocacoes].idClienteLocador = idCliente;
-    historicoLocacoes[totalLocacoes].idEstacaoUsada = idEstacao;
-    historicoLocacoes[totalLocacoes].horasContratadas = horas;
-    historicoLocacoes[totalLocacoes].valorTotal = valor;
+    int pos = totalLocacoes;
+    listaLocacoes[pos].idLocacao = gerarIdLocacao();
+    listaLocacoes[pos].idClienteLocador = idCliente;
+    listaLocacoes[pos].idEstacaoUsada = idEstacao;
+    listaLocacoes[pos].horasContratadas = horas;
+    listaLocacoes[pos].valorTotal = valor;
+    listaLocacoes[pos].emAndamento = 1;
     totalLocacoes++;
 
     salvarLocacoesCSV();
@@ -152,11 +172,11 @@ void registrarLocacao() {
     salvarEstacoesCSV();
 
     printf("[OK] Locacao registrada: %s em '%s' por %dh = R$ %.2f (saldo restante: R$ %.2f)\n",
-           listaClientes[ic].nome, estacoes[ie].nomeEstacao, horas, valor,
+           listaClientes[ic].nome, listaEstacoes[ie].nomeEstacao, horas, valor,
            listaClientes[ic].saldoCreditos);
 }
 
-// 7. LISTAGEM DO HISTORICO
+// 8. LISTAGEM DO HISTORICO
 void listarLocacoes() {
     printf("\n--- HISTORICO DE LOCACOES (%d registros) ---\n", totalLocacoes);
     if (totalLocacoes == 0) {
@@ -168,11 +188,11 @@ void listarLocacoes() {
     }
 }
 
-// 8. ESTORNO: devolve o valor ao cliente, libera a estacao e remove do historico
+// 9. ESTORNO: devolve o valor ao cliente, libera a estacao (se a sessao ainda
+//    estiver em andamento) e remove do historico
 void estornarLocacao() {
-    int id;
     printf("\nDigite o ID da locacao que deseja ESTORNAR: ");
-    scanf("%d", &id);
+    int id = lerInteiro();
 
     int pos = buscarIndiceLocacao(id);
     if (pos == -1) {
@@ -180,50 +200,47 @@ void estornarLocacao() {
         return;
     }
 
-    int ic = buscarIndiceCliente(historicoLocacoes[pos].idClienteLocador);
-    int ie = buscarIndiceEstacao(historicoLocacoes[pos].idEstacaoUsada);
-    if (ic != -1) listaClientes[ic].saldoCreditos += historicoLocacoes[pos].valorTotal;
-    if (ie != -1) estacoes[ie].ocupada = 0;
+    int ic = buscarIndiceCliente(listaLocacoes[pos].idClienteLocador);
+    int ie = buscarIndiceEstacao(listaLocacoes[pos].idEstacaoUsada);
+    if (ic != -1) listaClientes[ic].saldoCreditos += listaLocacoes[pos].valorTotal;
+    if (ie != -1 && listaLocacoes[pos].emAndamento) listaEstacoes[ie].ocupada = 0;
 
     for (int j = pos; j < totalLocacoes - 1; j++) {
-        historicoLocacoes[j] = historicoLocacoes[j + 1]; // puxa a fila
+        listaLocacoes[j] = listaLocacoes[j + 1]; // puxa a fila para cobrir o item removido
     }
     totalLocacoes--;
 
     salvarLocacoesCSV();
     salvarClientesCSV();
     salvarEstacoesCSV();
-    printf("[OK] Locacao estornada: valor devolvido ao cliente e estacao liberada!\n");
+    printf("[OK] Locacao estornada: valor devolvido ao cliente!\n");
 }
 
-// 9. ENCERRAR SESSAO: libera a estacao da locacao sem apagar o historico
+// 10. ENCERRAR SESSAO: libera a estacao da locacao sem apagar o historico
 void encerrarSessao() {
-    int id;
     printf("\nDigite o ID da locacao a ENCERRAR: ");
-    scanf("%d", &id);
+    int id = lerInteiro();
 
     int pos = buscarIndiceLocacao(id);
     if (pos == -1) {
         printf("[ERRO] Locacao nao encontrada!\n");
         return;
     }
-
-    int ie = buscarIndiceEstacao(historicoLocacoes[pos].idEstacaoUsada);
-    if (ie == -1) {
-        printf("[ERRO] A estacao desta locacao nao existe mais!\n");
-        return;
-    }
-    if (!estacoes[ie].ocupada) {
-        printf("A estacao '%s' ja esta livre.\n", estacoes[ie].nomeEstacao);
+    if (!listaLocacoes[pos].emAndamento) {
+        printf("Esta sessao ja foi encerrada.\n");
         return;
     }
 
-    estacoes[ie].ocupada = 0;
+    int ie = buscarIndiceEstacao(listaLocacoes[pos].idEstacaoUsada);
+    if (ie != -1) listaEstacoes[ie].ocupada = 0;
+    listaLocacoes[pos].emAndamento = 0;
+
+    salvarLocacoesCSV();
     salvarEstacoesCSV();
-    printf("[OK] Sessao encerrada: '%s' liberada!\n", estacoes[ie].nomeEstacao);
+    printf("[OK] Sessao encerrada e estacao liberada!\n");
 }
 
-// 10. MATRIZ 2D: linhas = clientes, colunas = estacoes, celula = horas jogadas
+// 11. MATRIZ 2D: linhas = clientes, colunas = estacoes, celula = horas jogadas
 void calcularMatrizHoras(int matriz[MAX_CLIENTES][MAX_ESTACOES]) {
     for (int c = 0; c < MAX_CLIENTES; c++) {
         for (int e = 0; e < MAX_ESTACOES; e++) {
@@ -231,15 +248,15 @@ void calcularMatrizHoras(int matriz[MAX_CLIENTES][MAX_ESTACOES]) {
         }
     }
     for (int i = 0; i < totalLocacoes; i++) {
-        int c = buscarIndiceCliente(historicoLocacoes[i].idClienteLocador);
-        int e = buscarIndiceEstacao(historicoLocacoes[i].idEstacaoUsada);
+        int c = buscarIndiceCliente(listaLocacoes[i].idClienteLocador);
+        int e = buscarIndiceEstacao(listaLocacoes[i].idEstacaoUsada);
         if (c != -1 && e != -1) {
-            matriz[c][e] += historicoLocacoes[i].horasContratadas;
+            matriz[c][e] += listaLocacoes[i].horasContratadas;
         }
     }
 }
 
-// 11. RELATORIO: estacao mais utilizada (soma das colunas da matriz)
+// 12. RELATORIO: estacao mais utilizada (soma das colunas da matriz)
 void relatorioEstacaoMaisUsada() {
     int matriz[MAX_CLIENTES][MAX_ESTACOES];
     calcularMatrizHoras(matriz);
@@ -257,10 +274,10 @@ void relatorioEstacaoMaisUsada() {
     printf("\n--- [RELATORIO] ESTACAO MAIS UTILIZADA ---\n");
     if (melhor == -1) printf("Nenhuma locacao registrada.\n");
     else printf("%s (%s) com %d horas de uso no total.\n",
-                estacoes[melhor].nomeEstacao, estacoes[melhor].tipo, maiorHoras);
+                listaEstacoes[melhor].nomeEstacao, listaEstacoes[melhor].tipo, maiorHoras);
 }
 
-// 12. RELATORIO: cliente VIP (soma das linhas da matriz)
+// 13. RELATORIO: cliente VIP (soma das linhas da matriz)
 void relatorioClienteVIP() {
     int matriz[MAX_CLIENTES][MAX_ESTACOES];
     calcularMatrizHoras(matriz);
@@ -281,11 +298,10 @@ void relatorioClienteVIP() {
                 listaClientes[melhor].nome, listaClientes[melhor].idCliente, maiorHoras);
 }
 
-// 13. RELATORIO: locacoes de um cliente especifico (com total de horas e gasto)
+// 14. RELATORIO: locacoes de um cliente especifico (com total de horas e gasto)
 void relatorioLocacoesDoCliente() {
-    int id;
     printf("\nDigite o ID do cliente: ");
-    scanf("%d", &id);
+    int id = lerInteiro();
 
     int ic = buscarIndiceCliente(id);
     if (ic == -1) {
@@ -298,10 +314,10 @@ void relatorioLocacoesDoCliente() {
 
     printf("\n--- [RELATORIO] LOCACOES DE %s ---\n", listaClientes[ic].nome);
     for (int i = 0; i < totalLocacoes; i++) {
-        if (historicoLocacoes[i].idClienteLocador == id) {
+        if (listaLocacoes[i].idClienteLocador == id) {
             imprimirLocacao(i);
-            totalHoras += historicoLocacoes[i].horasContratadas;
-            totalGasto += historicoLocacoes[i].valorTotal;
+            totalHoras += listaLocacoes[i].horasContratadas;
+            totalGasto += listaLocacoes[i].valorTotal;
             quantidade++;
         }
     }
@@ -310,7 +326,7 @@ void relatorioLocacoesDoCliente() {
     else printf("Total: %d locacao(oes) | %d horas | R$ %.2f gastos\n", quantidade, totalHoras, totalGasto);
 }
 
-// 14. [BONUS] RANKING DE CLIENTES POR HORAS COM BUBBLE SORT EM STRUCTS
+// 15. [BONUS] RANKING DE CLIENTES POR HORAS COM BUBBLE SORT EM STRUCTS
 void rankingClientesBubbleSort() {
     int matriz[MAX_CLIENTES][MAX_ESTACOES];
     calcularMatrizHoras(matriz);
@@ -344,25 +360,25 @@ void rankingClientesBubbleSort() {
     }
 }
 
-// 15. SUBMENU (cada case chama a sua propria funcao)
+// 16. SUBMENU (cada case chama a sua propria funcao)
 void moduloLocacoesRelatorios() {
-    int opcaoLocacao;
+    int opcao;
     do {
-        printf("\n--- [MODULO 4: LOCACOES E RELATORIOS ANALITICOS (Integrante D)] ---\n");
+        printf("\n--- [MODULO 4: LOCACOES E RELATORIOS (Integrante D)] ---\n");
         printf("1. Registrar Nova Locacao\n");
         printf("2. Listar Historico de Locacoes\n");
-        printf("3. Cancelar / Estornar Locacao\n");
+        printf("3. Estornar Locacao\n");
         printf("4. Encerrar Sessao (libera a estacao)\n");
         printf("5. [RELATORIO] Estacao Mais Utilizada\n");
         printf("6. [RELATORIO] Cliente VIP (Mais Horas Jogadas)\n");
-        printf("7. [RELATORIO] Locacoes de um Cliente Especifico\n");
+        printf("7. [RELATORIO] Locacoes de um Cliente\n");
         printf("8. [RANKING] Clientes por Horas (Bubble Sort)\n");
         printf("0. Voltar ao Menu Principal\n");
         printf("Escolha uma acao: ");
-        scanf("%d", &opcaoLocacao);
+        opcao = lerInteiro();
         limparTela();
 
-        switch (opcaoLocacao) {
+        switch (opcao) {
             case 1: registrarLocacao(); break;
             case 2: listarLocacoes(); break;
             case 3: estornarLocacao(); break;
@@ -374,7 +390,7 @@ void moduloLocacoesRelatorios() {
             case 0: printf("\nRetornando ao menu principal...\n"); break;
             default: printf("\n[ERRO] Opcao invalida no Modulo de Locacoes!\n");
         }
-    } while (opcaoLocacao != 0);
+    } while (opcao != 0);
 }
 
 #endif

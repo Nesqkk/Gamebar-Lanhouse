@@ -2,27 +2,23 @@
 #ifndef CLIENTES_H
 #define CLIENTES_H
 
-#include <stdio.h>
-#include <string.h>
+#include "utils.h"
 
 #define MAX_CLIENTES 50
 
-void limparTela(); // prototipo: a funcao completa fica no main.c da equipe
+int clienteTemLocacoes(int idCliente); // prototipo: a funcao completa fica no locacoes.h
 
 struct Cliente {
     int idCliente;
     char nome[50];
     char telefone[20];
     float saldoCreditos;   // creditos pre-pagos em R$
-    int ativo;             // 1 = Ativo (a remocao e fisica, entao fica sempre 1)
 };
 
 struct Cliente listaClientes[MAX_CLIENTES];
 int totalClientes = 0;
 
-// ---------------------------------------------------------------------------
 // 1. PERSISTENCIA: regrava o vetor inteiro em clientes.csv (modo "w" zera o arquivo)
-// ---------------------------------------------------------------------------
 void salvarClientesCSV() {
     FILE *arq = fopen("clientes.csv", "w");
     if (arq == NULL) {
@@ -39,30 +35,26 @@ void salvarClientesCSV() {
     fclose(arq);
 }
 
-// ---------------------------------------------------------------------------
 // 2. PERSISTENCIA: carrega clientes.csv para o vetor ao abrir o programa
-// ---------------------------------------------------------------------------
 void carregarClientesCSV() {
     FILE *arq = fopen("clientes.csv", "r");
     if (arq == NULL) return; // se ainda nao existir arquivo, inicia com 0 registros
 
+    char linha[200];
     totalClientes = 0;
-    while (totalClientes < MAX_CLIENTES &&
-           fscanf(arq, "%d;%49[^;];%19[^;];%f\n",
-                  &listaClientes[totalClientes].idCliente,
-                  listaClientes[totalClientes].nome,
-                  listaClientes[totalClientes].telefone,
-                  &listaClientes[totalClientes].saldoCreditos) == 4) {
-        listaClientes[totalClientes].ativo = 1;
-        totalClientes++;
+    while (totalClientes < MAX_CLIENTES && fgets(linha, sizeof(linha), arq) != NULL) {
+        int i = totalClientes;
+        int lidos = sscanf(linha, "%d;%49[^;];%19[^;];%f",
+                           &listaClientes[i].idCliente,
+                           listaClientes[i].nome,
+                           listaClientes[i].telefone,
+                           &listaClientes[i].saldoCreditos);
+        if (lidos == 4) totalClientes++; // linha com defeito e ignorada
     }
     fclose(arq);
 }
 
-// ---------------------------------------------------------------------------
 // 3. FUNCAO CHAVE-MESTRA: devolve a posicao do ID no vetor, ou -1 se nao existir
-//    (o Modulo 4 usa esta funcao para validar o cliente na locacao)
-// ---------------------------------------------------------------------------
 int buscarIndiceCliente(int idProcurado) {
     for (int i = 0; i < totalClientes; i++) {
         if (listaClientes[i].idCliente == idProcurado) return i;
@@ -70,9 +62,7 @@ int buscarIndiceCliente(int idProcurado) {
     return -1;
 }
 
-// ---------------------------------------------------------------------------
-// 4. AUTOINCREMENT: laco que acha o maior ID e devolve o proximo (nunca repete)
-// ---------------------------------------------------------------------------
+// 4. AUTOINCREMENT: acha o maior ID e devolve o proximo
 int gerarIdCliente() {
     int maior = 0;
     for (int i = 0; i < totalClientes; i++) {
@@ -81,52 +71,35 @@ int gerarIdCliente() {
     return maior + 1;
 }
 
-// ---------------------------------------------------------------------------
-// 5. PROTECAO DO CSV: troca ';' digitado pelo usuario por espaco
-// ---------------------------------------------------------------------------
-void trocarPontoVirgula(char texto[]) {
-    for (int i = 0; texto[i] != '\0'; i++) {
-        if (texto[i] == ';') texto[i] = ' ';
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 6. CADASTRO (ID automatico + validacao do saldo + gravacao no CSV)
-// ---------------------------------------------------------------------------
+// 5. CADASTRO (ID automatico + validacoes + gravacao no CSV)
 void cadastrarCliente() {
     if (totalClientes >= MAX_CLIENTES) {
         printf("[ERRO] Limite de %d clientes atingido!\n", MAX_CLIENTES);
         return;
     }
 
-    listaClientes[totalClientes].idCliente = gerarIdCliente();
-    printf("\nNovo cliente (ID gerado: %d)\n", listaClientes[totalClientes].idCliente);
+    int pos = totalClientes;
+    listaClientes[pos].idCliente = gerarIdCliente();
+    printf("\nNovo cliente (ID gerado: %d)\n", listaClientes[pos].idCliente);
 
     printf("Nome (com espacos): ");
-    scanf(" %49[^\n]", listaClientes[totalClientes].nome);
-    trocarPontoVirgula(listaClientes[totalClientes].nome);
+    lerTexto(listaClientes[pos].nome, 50);
 
     printf("Telefone: ");
-    scanf(" %19[^\n]", listaClientes[totalClientes].telefone);
-    trocarPontoVirgula(listaClientes[totalClientes].telefone);
+    lerTexto(listaClientes[pos].telefone, 20);
 
     do {
         printf("Saldo inicial de creditos (R$): ");
-        scanf("%f", &listaClientes[totalClientes].saldoCreditos);
-        if (listaClientes[totalClientes].saldoCreditos < 0) {
-            printf("[ERRO] O saldo nao pode ser negativo!\n");
-        }
-    } while (listaClientes[totalClientes].saldoCreditos < 0);
+        listaClientes[pos].saldoCreditos = lerDecimal();
+        if (listaClientes[pos].saldoCreditos < 0) printf("[ERRO] O saldo nao pode ser negativo!\n");
+    } while (listaClientes[pos].saldoCreditos < 0);
 
-    listaClientes[totalClientes].ativo = 1;
     totalClientes++;
     salvarClientesCSV();
     printf("[OK] Cliente salvo com sucesso em 'clientes.csv'!\n");
 }
 
-// ---------------------------------------------------------------------------
-// 7. LISTAGEM FORMATADA
-// ---------------------------------------------------------------------------
+// 6. LISTAGEM FORMATADA
 void listarClientes() {
     printf("\n--- CLIENTES DO GAME BAR (%d cadastrados) ---\n", totalClientes);
     if (totalClientes == 0) {
@@ -140,18 +113,16 @@ void listarClientes() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// 8. BUSCA TEXTUAL COM strstr (parte do nome)
-// ---------------------------------------------------------------------------
+// 7. BUSCA POR PARTE DO NOME (nao diferencia maiuscula de minuscula)
 void buscarClientePorNome() {
     char termo[30];
     int achou = 0;
 
-    printf("\nDigite parte do nome para buscar: ");
-    scanf(" %29[^\n]", termo);
+    printf("\nDigite parte do nome do cliente: ");
+    lerTexto(termo, 30);
 
     for (int i = 0; i < totalClientes; i++) {
-        if (strstr(listaClientes[i].nome, termo) != NULL) {
+        if (contemTexto(listaClientes[i].nome, termo)) {
             printf(" -> Encontrado: [%d] %s | Tel: %s | Saldo: R$ %.2f\n",
                    listaClientes[i].idCliente, listaClientes[i].nome,
                    listaClientes[i].telefone, listaClientes[i].saldoCreditos);
@@ -161,13 +132,10 @@ void buscarClientePorNome() {
     if (!achou) printf("Nenhum cliente encontrado com \"%s\".\n", termo);
 }
 
-// ---------------------------------------------------------------------------
-// 9. [BONUS] EDICAO NA MEMORIA + REESCRITA TOTAL DO CSV
-// ---------------------------------------------------------------------------
+// 8. [BONUS] EDICAO NA MEMORIA + REESCRITA TOTAL DO CSV
 void editarCliente() {
-    int id;
     printf("\nDigite o ID do cliente que deseja EDITAR: ");
-    scanf("%d", &id);
+    int id = lerInteiro();
 
     int pos = buscarIndiceCliente(id);
     if (pos == -1) {
@@ -177,36 +145,33 @@ void editarCliente() {
 
     printf("Editando '%s'.\n", listaClientes[pos].nome);
     printf("Novo nome: ");
-    scanf(" %49[^\n]", listaClientes[pos].nome);
-    trocarPontoVirgula(listaClientes[pos].nome);
+    lerTexto(listaClientes[pos].nome, 50);
 
     printf("Novo telefone: ");
-    scanf(" %19[^\n]", listaClientes[pos].telefone);
-    trocarPontoVirgula(listaClientes[pos].telefone);
+    lerTexto(listaClientes[pos].telefone, 20);
 
     do {
         printf("Novo saldo de creditos (R$): ");
-        scanf("%f", &listaClientes[pos].saldoCreditos);
-        if (listaClientes[pos].saldoCreditos < 0) {
-            printf("[ERRO] O saldo nao pode ser negativo!\n");
-        }
+        listaClientes[pos].saldoCreditos = lerDecimal();
+        if (listaClientes[pos].saldoCreditos < 0) printf("[ERRO] O saldo nao pode ser negativo!\n");
     } while (listaClientes[pos].saldoCreditos < 0);
 
     salvarClientesCSV();
     printf("[OK] Cliente atualizado na memoria e no arquivo CSV!\n");
 }
 
-// ---------------------------------------------------------------------------
-// 10. [BONUS] REMOCAO FISICA NA MEMORIA + REESCRITA TOTAL DO CSV
-// ---------------------------------------------------------------------------
+// 9. [BONUS] REMOCAO FISICA NA MEMORIA + REESCRITA TOTAL DO CSV
 void removerCliente() {
-    int id;
     printf("\nDigite o ID do cliente que deseja REMOVER: ");
-    scanf("%d", &id);
+    int id = lerInteiro();
 
     int pos = buscarIndiceCliente(id);
     if (pos == -1) {
         printf("[ERRO] Cliente nao encontrado!\n");
+        return;
+    }
+    if (clienteTemLocacoes(id)) {
+        printf("[ERRO] Este cliente tem locacoes no historico! Estorne as locacoes antes de remover.\n");
         return;
     }
 
@@ -218,18 +183,22 @@ void removerCliente() {
     printf("[OK] Cliente removido do sistema e do CSV!\n");
 }
 
-// ---------------------------------------------------------------------------
-// 11. SUBMENU (cada case chama a sua propria funcao)
-// ---------------------------------------------------------------------------
+// 10. SUBMENU (cada case chama a sua propria funcao)
 void moduloClientes() {
-    int opcaoCliente;
+    int opcao;
     do {
         printf("\n--- [MODULO 1: GESTAO DE CLIENTES (Integrante A)] ---\n");
-        printf("1. Cadastrar | 2. Listar | 3. Buscar por Nome | 4. Editar | 5. Remover | 0. Voltar: ");
-        scanf("%d", &opcaoCliente);
+        printf("1. Cadastrar Cliente\n");
+        printf("2. Listar Clientes\n");
+        printf("3. Buscar por Nome\n");
+        printf("4. Editar Cliente\n");
+        printf("5. Remover Cliente\n");
+        printf("0. Voltar ao Menu Principal\n");
+        printf("Escolha uma acao: ");
+        opcao = lerInteiro();
         limparTela();
 
-        switch (opcaoCliente) {
+        switch (opcao) {
             case 1: cadastrarCliente(); break;
             case 2: listarClientes(); break;
             case 3: buscarClientePorNome(); break;
@@ -238,7 +207,7 @@ void moduloClientes() {
             case 0: printf("\nRetornando ao menu principal...\n"); break;
             default: printf("\n[ERRO] Opcao invalida no Modulo de Clientes!\n");
         }
-    } while (opcaoCliente != 0);
+    } while (opcao != 0);
 }
 
 #endif

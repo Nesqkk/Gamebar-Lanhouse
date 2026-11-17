@@ -1,14 +1,13 @@
-// Arquivo: estacoes.h | Modulo 3: Estacoes de Jogo | Autor: João Paulo Rocha Trindade 49222767
+// Arquivo: estacoes.h | Modulo 3: Estacoes de Jogo | Autor: Joao Paulo Rocha Trindade 49222767
 #ifndef ESTACOES_H
 #define ESTACOES_H
 
-#include <stdio.h>
-#include <string.h>
+#include "utils.h"
 
 #define MAX_ESTACOES 50
 #define PRECO_HORA 1.00  // valor da hora de uso de qualquer estacao (R$)
 
-void limparTela(); // prototipo: a funcao completa fica no main.c da equipe
+int estacaoTemLocacoes(int idEstacao); // prototipo: a funcao completa fica no locacoes.h
 
 struct Estacao {
     int idEstacao;
@@ -16,10 +15,9 @@ struct Estacao {
     char tipo[20];         // "Computador", "Console", "Celular" ou "VR"
     float precoHora;       // usa PRECO_HORA (R$ 1,00)
     int ocupada;           // 1 = Em uso, 0 = Livre
-    int ativa;             // 1 = Ativa (a baixa e fisica, entao fica sempre 1)
 };
 
-struct Estacao estacoes[MAX_ESTACOES];
+struct Estacao listaEstacoes[MAX_ESTACOES];
 int totalEstacoes = 0;
 
 // 1. PERSISTENCIA: regrava o vetor inteiro em estacoes.csv (modo "w" zera o arquivo)
@@ -31,11 +29,11 @@ void salvarEstacoesCSV() {
     }
     for (int i = 0; i < totalEstacoes; i++) {
         fprintf(arq, "%d;%s;%s;%.2f;%d\n",
-                estacoes[i].idEstacao,
-                estacoes[i].nomeEstacao,
-                estacoes[i].tipo,
-                estacoes[i].precoHora,
-                estacoes[i].ocupada);
+                listaEstacoes[i].idEstacao,
+                listaEstacoes[i].nomeEstacao,
+                listaEstacoes[i].tipo,
+                listaEstacoes[i].precoHora,
+                listaEstacoes[i].ocupada);
     }
     fclose(arq);
 }
@@ -45,51 +43,44 @@ void carregarEstacoesCSV() {
     FILE *arq = fopen("estacoes.csv", "r");
     if (arq == NULL) return; // se ainda nao existir arquivo, inicia com 0 registros
 
+    char linha[200];
     totalEstacoes = 0;
-    while (totalEstacoes < MAX_ESTACOES &&
-           fscanf(arq, "%d;%29[^;];%19[^;];%f;%d\n",
-                  &estacoes[totalEstacoes].idEstacao,
-                  estacoes[totalEstacoes].nomeEstacao,
-                  estacoes[totalEstacoes].tipo,
-                  &estacoes[totalEstacoes].precoHora,
-                  &estacoes[totalEstacoes].ocupada) == 5) {
-        estacoes[totalEstacoes].ativa = 1;
-        totalEstacoes++;
+    while (totalEstacoes < MAX_ESTACOES && fgets(linha, sizeof(linha), arq) != NULL) {
+        int i = totalEstacoes;
+        int lidos = sscanf(linha, "%d;%29[^;];%19[^;];%f;%d",
+                           &listaEstacoes[i].idEstacao,
+                           listaEstacoes[i].nomeEstacao,
+                           listaEstacoes[i].tipo,
+                           &listaEstacoes[i].precoHora,
+                           &listaEstacoes[i].ocupada);
+        if (lidos == 5) totalEstacoes++; // linha com defeito e ignorada
     }
     fclose(arq);
 }
 
 // 3. FUNCAO CHAVE-MESTRA: devolve a posicao do ID no vetor, ou -1 se nao existir
-//    (o Modulo 4 usa esta funcao para validar a estacao na locacao)
 int buscarIndiceEstacao(int idProcurado) {
     for (int i = 0; i < totalEstacoes; i++) {
-        if (estacoes[i].idEstacao == idProcurado) return i;
+        if (listaEstacoes[i].idEstacao == idProcurado) return i;
     }
     return -1;
 }
 
-// 4. AUTOINCREMENT: laco que acha o maior ID e devolve o proximo (nunca repete)
+// 4. AUTOINCREMENT: acha o maior ID e devolve o proximo
 int gerarIdEstacao() {
     int maior = 0;
     for (int i = 0; i < totalEstacoes; i++) {
-        if (estacoes[i].idEstacao > maior) maior = estacoes[i].idEstacao;
+        if (listaEstacoes[i].idEstacao > maior) maior = listaEstacoes[i].idEstacao;
     }
     return maior + 1;
 }
 
-// 5. PROTECAO DO CSV: troca ';' digitado pelo usuario por espaco
-void trocarPontoVirgulaEstacao(char texto[]) {
-    for (int i = 0; texto[i] != '\0'; i++) {
-        if (texto[i] == ';') texto[i] = ' ';
-    }
-}
-
-// 6. ESCOLHA DO TIPO (so aceita Computador, Console, Celular ou VR)
+// 5. ESCOLHA DO TIPO (so aceita Computador, Console, Celular ou VR)
 void escolherTipoEstacao(char destino[]) {
     int op;
     do {
         printf("Tipo (1-Computador | 2-Console | 3-Celular | 4-VR): ");
-        scanf("%d", &op);
+        op = lerInteiro();
         if (op == 1) strcpy(destino, "Computador");
         else if (op == 2) strcpy(destino, "Console");
         else if (op == 3) strcpy(destino, "Celular");
@@ -98,31 +89,30 @@ void escolherTipoEstacao(char destino[]) {
     } while (op < 1 || op > 4);
 }
 
-// 7. CADASTRO (ID automatico + preco fixo PRECO_HORA + gravacao no CSV)
+// 6. CADASTRO (ID automatico + preco fixo PRECO_HORA + gravacao no CSV)
 void cadastrarEstacao() {
     if (totalEstacoes >= MAX_ESTACOES) {
         printf("[ERRO] Limite de %d estacoes atingido!\n", MAX_ESTACOES);
         return;
     }
 
-    estacoes[totalEstacoes].idEstacao = gerarIdEstacao();
-    printf("\nNova estacao (ID gerado: %d)\n", estacoes[totalEstacoes].idEstacao);
+    int pos = totalEstacoes;
+    listaEstacoes[pos].idEstacao = gerarIdEstacao();
+    printf("\nNova estacao (ID gerado: %d)\n", listaEstacoes[pos].idEstacao);
 
     printf("Nome da estacao (ex: PC Gamer 05): ");
-    scanf(" %29[^\n]", estacoes[totalEstacoes].nomeEstacao);
-    trocarPontoVirgulaEstacao(estacoes[totalEstacoes].nomeEstacao);
+    lerTexto(listaEstacoes[pos].nomeEstacao, 30);
 
-    escolherTipoEstacao(estacoes[totalEstacoes].tipo);
+    escolherTipoEstacao(listaEstacoes[pos].tipo);
 
-    estacoes[totalEstacoes].precoHora = PRECO_HORA;
-    estacoes[totalEstacoes].ocupada = 0;
-    estacoes[totalEstacoes].ativa = 1;
+    listaEstacoes[pos].precoHora = PRECO_HORA;
+    listaEstacoes[pos].ocupada = 0;
     totalEstacoes++;
     salvarEstacoesCSV();
     printf("[OK] Estacao salva em 'estacoes.csv' (hora a R$ %.2f)!\n", PRECO_HORA);
 }
 
-// 8. LISTAGEM FORMATADA (mostra se esta livre ou em uso)
+// 7. LISTAGEM FORMATADA (mostra se esta livre ou em uso)
 void listarEstacoes() {
     printf("\n--- ESTACOES DE JOGO (%d cadastradas) ---\n", totalEstacoes);
     if (totalEstacoes == 0) {
@@ -131,35 +121,34 @@ void listarEstacoes() {
     }
     for (int i = 0; i < totalEstacoes; i++) {
         printf("ID: %-3d | %-24s | %-10s | R$ %.2f/h | %s\n",
-               estacoes[i].idEstacao, estacoes[i].nomeEstacao, estacoes[i].tipo,
-               estacoes[i].precoHora, estacoes[i].ocupada ? "EM USO" : "Livre");
+               listaEstacoes[i].idEstacao, listaEstacoes[i].nomeEstacao, listaEstacoes[i].tipo,
+               listaEstacoes[i].precoHora, listaEstacoes[i].ocupada ? "EM USO" : "Livre");
     }
 }
 
-// 9. BUSCA TEXTUAL COM strstr (parte do nome)
+// 8. BUSCA POR PARTE DO NOME (nao diferencia maiuscula de minuscula)
 void buscarEstacaoPorNome() {
     char termo[30];
     int achou = 0;
 
     printf("\nDigite parte do nome da estacao: ");
-    scanf(" %29[^\n]", termo);
+    lerTexto(termo, 30);
 
     for (int i = 0; i < totalEstacoes; i++) {
-        if (strstr(estacoes[i].nomeEstacao, termo) != NULL) {
+        if (contemTexto(listaEstacoes[i].nomeEstacao, termo)) {
             printf(" -> Encontrada: [%d] %s (%s) | %s\n",
-                   estacoes[i].idEstacao, estacoes[i].nomeEstacao, estacoes[i].tipo,
-                   estacoes[i].ocupada ? "EM USO" : "Livre");
+                   listaEstacoes[i].idEstacao, listaEstacoes[i].nomeEstacao, listaEstacoes[i].tipo,
+                   listaEstacoes[i].ocupada ? "EM USO" : "Livre");
             achou = 1;
         }
     }
     if (!achou) printf("Nenhuma estacao encontrada com \"%s\".\n", termo);
 }
 
-// 10. [BONUS] EDICAO NA MEMORIA + REESCRITA TOTAL DO CSV
+// 9. [BONUS] EDICAO NA MEMORIA + REESCRITA TOTAL DO CSV
 void editarEstacao() {
-    int id;
     printf("\nDigite o ID da estacao que deseja EDITAR: ");
-    scanf("%d", &id);
+    int id = lerInteiro();
 
     int pos = buscarIndiceEstacao(id);
     if (pos == -1) {
@@ -167,59 +156,67 @@ void editarEstacao() {
         return;
     }
 
-    printf("Editando '%s'.\n", estacoes[pos].nomeEstacao);
+    printf("Editando '%s'.\n", listaEstacoes[pos].nomeEstacao);
     printf("Novo nome: ");
-    scanf(" %29[^\n]", estacoes[pos].nomeEstacao);
-    trocarPontoVirgulaEstacao(estacoes[pos].nomeEstacao);
+    lerTexto(listaEstacoes[pos].nomeEstacao, 30);
 
-    escolherTipoEstacao(estacoes[pos].tipo);
+    escolherTipoEstacao(listaEstacoes[pos].tipo);
 
     int situacao;
     do {
         printf("Situacao (0-Livre | 1-Em uso): ");
-        scanf("%d", &situacao);
+        situacao = lerInteiro();
         if (situacao != 0 && situacao != 1) printf("[ERRO] Digite 0 ou 1!\n");
     } while (situacao != 0 && situacao != 1);
-    estacoes[pos].ocupada = situacao;
+    listaEstacoes[pos].ocupada = situacao;
 
     salvarEstacoesCSV();
     printf("[OK] Estacao atualizada na memoria e no arquivo CSV!\n");
 }
 
-// 11. [BONUS] BAIXA FISICA NA MEMORIA + REESCRITA TOTAL DO CSV
+// 10. [BONUS] REMOCAO FISICA NA MEMORIA + REESCRITA TOTAL DO CSV
 void removerEstacao() {
-    int id;
     printf("\nDigite o ID da estacao que deseja REMOVER: ");
-    scanf("%d", &id);
+    int id = lerInteiro();
 
     int pos = buscarIndiceEstacao(id);
     if (pos == -1) {
         printf("[ERRO] Estacao nao encontrada!\n");
         return;
     }
-    if (estacoes[pos].ocupada) {
+    if (listaEstacoes[pos].ocupada) {
         printf("[ERRO] Estacao em uso! Encerre a sessao antes de remover.\n");
+        return;
+    }
+    if (estacaoTemLocacoes(id)) {
+        printf("[ERRO] Esta estacao tem locacoes no historico! Estorne as locacoes antes de remover.\n");
         return;
     }
 
     for (int j = pos; j < totalEstacoes - 1; j++) {
-        estacoes[j] = estacoes[j + 1]; // puxa a fila para cobrir o item removido
+        listaEstacoes[j] = listaEstacoes[j + 1]; // puxa a fila para cobrir o item removido
     }
     totalEstacoes--;
     salvarEstacoesCSV();
     printf("[OK] Estacao removida do sistema e do CSV!\n");
 }
 
-// 12. SUBMENU (cada case chama a sua propria funcao)
+// 11. SUBMENU (cada case chama a sua propria funcao)
 void moduloEstacoes() {
-    int opcaoEstacao;
+    int opcao;
     do {
         printf("\n--- [MODULO 3: ESTACOES DE JOGO (Integrante C)] ---\n");
-        printf("1. Cadastrar | 2. Listar | 3. Buscar por Nome | 4. Editar | 5. Remover | 0. Voltar: ");
-        scanf("%d", &opcaoEstacao);
+        printf("1. Cadastrar Estacao\n");
+        printf("2. Listar Estacoes\n");
+        printf("3. Buscar por Nome\n");
+        printf("4. Editar Estacao\n");
+        printf("5. Remover Estacao\n");
+        printf("0. Voltar ao Menu Principal\n");
+        printf("Escolha uma acao: ");
+        opcao = lerInteiro();
         limparTela();
 
-        switch (opcaoEstacao) {
+        switch (opcao) {
             case 1: cadastrarEstacao(); break;
             case 2: listarEstacoes(); break;
             case 3: buscarEstacaoPorNome(); break;
@@ -228,7 +225,7 @@ void moduloEstacoes() {
             case 0: printf("\nRetornando ao menu principal...\n"); break;
             default: printf("\n[ERRO] Opcao invalida no Modulo de Estacoes!\n");
         }
-    } while (opcaoEstacao != 0);
+    } while (opcao != 0);
 }
 
 #endif
